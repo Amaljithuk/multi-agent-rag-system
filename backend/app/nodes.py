@@ -58,3 +58,22 @@ def retrieve(state: AgentState):
     docs = vector_store.similarity_search(query, k=3)
     
     return {"documents": [d.page_content for d in docs]}
+class RouteQuery(BaseModel):
+    """Route a user query to the most appropriate agent."""
+    next_agent: str = Field(
+        description="The next agent to call: 'rag_agent' or 'web_search_agent'"
+    )
+
+def supervisor(state: AgentState):
+    print("---SUPERVISOR ROUTING---")
+    
+    # We provide the LLM with the context of the available agents
+    router_llm = llm.with_structured_output(RouteQuery)
+    
+    prompt = f"""You are a supervisor routing a request. 
+    If the question is about internal company documents, use 'rag_agent'. 
+    If the question is about current events or general public knowledge, use 'web_search_agent'.
+    Question: {state['messages'][-1].content}"""
+    
+    decision = router_llm.invoke(prompt)
+    return {"next_step": decision.next_agent}
